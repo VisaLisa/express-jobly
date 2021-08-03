@@ -39,23 +39,23 @@ class Company {
     return company;
   }
 
-  /** Find all companies.
+  /** Find all companies (optional filter on searchFilters).
+   *
+   * searchFilters (all optional):
+   * - minEmployees
+   * - maxEmployees
+   * - name (will find case-insensitive, partial matches)
    *
    * Returns [{ handle, name, description, numEmployees, logoUrl }, ...]
    * */
 
-  /** Adding Search Filters
-   *
-   * optional filtering criteria: minEmployees, maxEmployees, name (case-insensitive, partial matches allowed)
-   * */
-
   static async findAll(searchFilters = {}) {
     let query = `SELECT handle,
-                          name,
-                          description,
-                          num_employees AS "numEmployees",
-                          logo_url AS "logoUrl"
-                   FROM companies`;
+                        name,
+                        description,
+                        num_employees AS "numEmployees",
+                        logo_url AS "logoUrl"
+                 FROM companies`;
     let whereExpressions = [];
     let queryValues = [];
 
@@ -64,6 +64,9 @@ class Company {
     if (minEmployees > maxEmployees) {
       throw new BadRequestError("Min employees cannot be greater than max");
     }
+
+    // For each possible search term, add to whereExpressions and queryValues so
+    // we can generate the right SQL
 
     if (minEmployees !== undefined) {
       queryValues.push(minEmployees);
@@ -94,7 +97,7 @@ class Company {
   /** Given a company handle, return data about company.
    *
    * Returns { handle, name, description, numEmployees, logoUrl, jobs }
-   *   where jobs is [{ id, title, salary, equity, companyHandle }, ...]
+   *   where jobs is [{ id, title, salary, equity }, ...]
    *
    * Throws NotFoundError if not found.
    **/
@@ -114,6 +117,16 @@ class Company {
     const company = companyRes.rows[0];
 
     if (!company) throw new NotFoundError(`No company: ${handle}`);
+
+    const jobsRes = await db.query(
+      `SELECT id, title, salary, equity
+           FROM jobs
+           WHERE company_handle = $1
+           ORDER BY id`,
+      [handle]
+    );
+
+    company.jobs = jobsRes.rows;
 
     return company;
   }
